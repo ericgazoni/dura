@@ -139,6 +139,54 @@ engine.emit_event(event_name="order_approved", payload={"approver": "alice"})
 run needs to park; a worker pool built on `dura.workers` handles that
 transparently, so the run is simply left alone until it is woken.
 
+### Composing tasks
+
+`dura` has no built-in notion of a workflow, a parent task, or a schedule.
+All three are built from the same two primitives: a handler that calls
+`spawn_task`, and an idempotency key that makes calling it twice safe.
+
+Chain one task into another by spawning the next step as the last thing a
+handler does, wrapped in a checkpoint so a retry can't spawn it twice:
+
+```python
+def fetch_report(engine, task):
+    rows = fetch_rows_from_somewhere()
+    engine.checkpoint(
+        task_id=task.task_id,
+        step_name="spawn_next",
+        fn=lambda: engine.spawn_task(name="summarize_report", params={"rows": rows}).task_id,
+    )
+    return {"fetched": len(rows)}
+```
+
+A task can reschedule itself the same way, to build a recurring poller,
+by spawning its own next occurrence with a fresh `idempotency_key` before
+returning. See [the recurring-tasks how-to
+guide](docs/how-to/schedule-recurring-tasks.md) for the gotchas around
+choosing that key:
+
+```python
+from datetime import timedelta
+
+def poll_orders(engine, task):
+    run_number = task.params.get("run_number", 0) + 1
+    handle(fetch_new_orders())
+    engine.spawn_task(
+        name="poll_orders",
+        params={"run_number": run_number},
+        available_after=timedelta(seconds=30),
+        idempotency_key=f"poll_orders:{run_number}",
+    )
+    return {"processed": True}
+```
+
+A task can also fan out into many sub-tasks (spawn one per item, tagging
+each with a shared `batch_id`), and fan back in by pairing durable state
+(a countdown of how many remain) with an event that fires when it hits
+zero. See [the chain-and-fan-out how-to
+guide](docs/how-to/compose-tasks.md) for the full chaining and
+fan-out/fan-in patterns.
+
 ### Concurrency model
 
 SQLite allows a single writer at a time. Every mutating operation runs

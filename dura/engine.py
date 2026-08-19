@@ -14,10 +14,10 @@ Everything lives in one ``engine.db`` organised into five tables:
   outlives tasks (never touched by cleanup); for cross-task memory such as
   cursors, watermarks or "what have I already seen"
 
-The engine owns no threads. Callers drive it: a worker calls :meth:`claim_task`
-in a loop, runs the handler, then calls :meth:`complete_run` or
-:meth:`fail_run`. Steps inside a handler are made durable with
-:meth:`checkpoint`.
+The engine owns no threads. Callers drive it: a worker calls ``claim_task``
+in a loop, runs the handler, then calls ``complete_run`` or
+``fail_run``. Steps inside a handler are made durable with
+``checkpoint``.
 
 SQLite allows a single writer at a time. Every mutating operation runs inside a
 ``BEGIN IMMEDIATE`` transaction, which acquires the write lock up front so
@@ -146,7 +146,7 @@ class InvalidRunState(EngineError):
 
 
 class WorkflowSuspended(EngineError):
-    """Raised by :meth:`DurableEngine.wait_for_event` when a run parks itself.
+    """Raised by ``DurableEngine.wait_for_event`` when a run parks itself.
 
     The worker loop catches this and leaves the run alone: it is now
     ``sleeping`` and will be re-claimed when the awaited event fires or the
@@ -182,7 +182,7 @@ class RetryStrategy:
 
 @dataclass(frozen=True, kw_only=True)
 class TaskRef:
-    """Returned by :meth:`DurableEngine.spawn_task`."""
+    """Returned by ``DurableEngine.spawn_task``."""
 
     task_id: str
     run_id: str
@@ -192,7 +192,7 @@ class TaskRef:
 
 @dataclass(frozen=True, kw_only=True)
 class ClaimedTask:
-    """A task handed to a worker by :meth:`DurableEngine.claim_task`."""
+    """A task handed to a worker by ``DurableEngine.claim_task``."""
 
     run_id: str
     task_id: str
@@ -203,7 +203,7 @@ class ClaimedTask:
 
 @dataclass(frozen=True, kw_only=True)
 class TaskInfo:
-    """Read model returned by :meth:`DurableEngine.get_task`."""
+    """Read model returned by ``DurableEngine.get_task``."""
 
     task_id: str
     state: str
@@ -284,6 +284,7 @@ class DurableEngine:
             )
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA foreign_keys=ON")
             conn.execute(f"PRAGMA busy_timeout={self._busy_timeout_ms}")
             self._local.conn = conn
         return conn
@@ -695,7 +696,7 @@ class DurableEngine:
 
     def set_state_many(self, *, namespace: str, items: Mapping[str, Any]) -> int:
         """Upsert many ``key -> value`` entries under ``namespace`` in one
-        transaction. Much faster than a loop of :meth:`set_state` for bulk
+        transaction. Much faster than a loop of ``set_state`` for bulk
         imports (one commit, not one per key). Returns the number written.
         """
         now = _fmt(self._now())
@@ -907,12 +908,12 @@ class DurableEngine:
         event_name: str,
         timeout_secs: int | None = None,
     ) -> Any:
-        """Ergonomic wrapper over :meth:`await_event` for workflow handlers.
+        """Ergonomic wrapper over ``await_event`` for workflow handlers.
 
         Returns the event payload (or ``None`` on timeout) when the run may
-        proceed. When the run is parked, it raises :class:`WorkflowSuspended`,
+        proceed. When the run is parked, it raises ``WorkflowSuspended``,
         which unwinds the handler so the worker loop skips completion. Use this
-        inside handlers; use :meth:`await_event` when you need the raw tuple.
+        inside handlers; use ``await_event`` when you need the raw tuple.
         """
         should_suspend, payload = self.await_event(
             run_id=run_id,

@@ -1,7 +1,7 @@
 """dura: a SQLite-backed durable execution engine and worker pool.
 
-See :mod:`dura.engine` for the persistence/scheduling core and
-:mod:`dura.workers` for the reference worker-pool driver.
+See ``dura.engine`` for the persistence/scheduling core and
+``dura.workers`` for the reference worker-pool driver.
 """
 
 from dura.engine import (

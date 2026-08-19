@@ -1,6 +1,6 @@
 """Liveness heartbeat and the HTTP server that exposes /metrics and /healthz.
 
-Workers beat a shared :class:`Heartbeat` every loop iteration. ``/healthz``
+Workers beat a shared ``Heartbeat`` every loop iteration. ``/healthz``
 reports the process unhealthy (503) when no worker has beaten within a
 configured window -- i.e. the whole pool is wedged (e.g. every worker blocked on
 a dead source) -- so a Kubernetes liveness probe restarts it. A pool that is

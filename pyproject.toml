@@ -11,8 +11,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mkdocstrings>=1.0.6",
+    "mkdocstrings-python>=2.0.7",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "zensical>=0.0.56",
 ]
 
 [build-system]
