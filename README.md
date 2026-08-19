@@ -51,7 +51,7 @@ from dura import DurableEngine, run_workers
 
 engine = DurableEngine("engine.db")
 
-engine.spawn_task("send_file", {"uri": "/a.csv"})
+engine.spawn_task(name="send_file", params={"uri": "/a.csv"})
 
 def send_file(engine, task):
     return {"sent": task.params["uri"]}
@@ -73,8 +73,8 @@ from dura import DurableEngine, RetryStrategy
 engine = DurableEngine("engine.db")
 
 engine.spawn_task(
-    "charge_card",
-    {"customer_id": "c_123", "amount_cents": 4200},
+    name="charge_card",
+    params={"customer_id": "c_123", "amount_cents": 4200},
     max_attempts=5,
     retry=RetryStrategy(kind="exponential", base_seconds=1, factor=2, max_seconds=60),
     priority=10,
@@ -91,9 +91,11 @@ exception. `run_workers`/`process_task` do this for you; see
 ```python
 def import_report(engine, task):
     rows = engine.checkpoint(
-        task.task_id, "download", lambda: fetch_from_sftp(task.params["uri"])
+        task_id=task.task_id,
+        step_name="download",
+        fn=lambda: fetch_from_sftp(task.params["uri"]),
     )
-    engine.checkpoint(task.task_id, "load", lambda: load_into_db(rows))
+    engine.checkpoint(task_id=task.task_id, step_name="load", fn=lambda: load_into_db(rows))
     return {"rows": len(rows)}
 ```
 
@@ -104,9 +106,9 @@ immediately - the SFTP fetch does not happen twice.
 ### Durable state
 
 ```python
-last_seen = engine.get_state("poller:orders", "cursor", default=0)
+last_seen = engine.get_state(namespace="poller:orders", key="cursor", default=0)
 # ... fetch orders newer than last_seen ...
-engine.set_state("poller:orders", "cursor", new_cursor)
+engine.set_state(namespace="poller:orders", key="cursor", value=new_cursor)
 ```
 
 Unlike checkpoints, state is not tied to a task and is never removed by
@@ -119,14 +121,18 @@ from dura import WorkflowSuspended
 
 def await_approval(engine, task):
     payload = engine.wait_for_event(
-        task.run_id, task.task_id, "approval", "order_approved", timeout_secs=3600
+        run_id=task.run_id,
+        task_id=task.task_id,
+        step_name="approval",
+        event_name="order_approved",
+        timeout_secs=3600,
     )
     if payload is None:
         return {"status": "timed_out"}
     return {"status": "approved", "by": payload["approver"]}
 
 # elsewhere, when the approval arrives:
-engine.emit_event("order_approved", {"approver": "alice"})
+engine.emit_event(event_name="order_approved", payload={"approver": "alice"})
 ```
 
 `wait_for_event` raises `WorkflowSuspended` to unwind the handler when the

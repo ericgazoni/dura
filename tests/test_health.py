@@ -23,7 +23,7 @@ def test_heartbeat_tracks_silence():
 def test_healthz_flips_to_503_when_pool_is_stuck():
     now = [1000.0]
     hb = Heartbeat(clock=lambda: now[0])
-    httpd = start_metrics_and_health_server(0, hb, max_silence_seconds=60)
+    httpd = start_metrics_and_health_server(port=0, heartbeat=hb, max_silence_seconds=60)
     try:
         port = httpd.server_address[1]
 

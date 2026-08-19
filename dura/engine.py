@@ -154,7 +154,7 @@ class WorkflowSuspended(EngineError):
     """
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class RetryStrategy:
     """How a failed task should be retried.
 
@@ -180,7 +180,7 @@ class RetryStrategy:
         }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class TaskRef:
     """Returned by :meth:`DurableEngine.spawn_task`."""
 
@@ -190,7 +190,7 @@ class TaskRef:
     created: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class ClaimedTask:
     """A task handed to a worker by :meth:`DurableEngine.claim_task`."""
 
@@ -201,7 +201,7 @@ class ClaimedTask:
     params: Any
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class TaskInfo:
     """Read model returned by :meth:`DurableEngine.get_task`."""
 
@@ -311,9 +311,9 @@ class DurableEngine:
 
     def spawn_task(
         self,
+        *,
         name: str,
         params: Any,
-        *,
         idempotency_key: str | None = None,
         retry: RetryStrategy | None = None,
         max_attempts: int | None = None,
@@ -379,6 +379,7 @@ class DurableEngine:
 
     def claim_task(
         self,
+        *,
         worker_id: str,
         timeout_secs: int = 120,
         max_priority: int | None = None,
@@ -448,7 +449,7 @@ class DurableEngine:
             params=_loads(row["params"]),
         )
 
-    def complete_run(self, run_id: str, result: Any = None) -> None:
+    def complete_run(self, *, run_id: str, result: Any = None) -> None:
         """Mark a run and its task as completed."""
         now_str = _fmt(self._now())
         with self._tx() as conn:
@@ -469,7 +470,7 @@ class DurableEngine:
             )
             conn.execute("DELETE FROM waits WHERE run_id = ?", (run_id,))
 
-    def fail_run(self, run_id: str, reason: dict[str, Any]) -> None:
+    def fail_run(self, *, run_id: str, reason: dict[str, Any]) -> None:
         """Mark a run as failed and schedule a retry if attempts remain."""
         now = self._now()
         now_str = _fmt(now)
@@ -575,10 +576,10 @@ class DurableEngine:
             return None, 0
         ids = [r["task_id"] for r in rows]
         for dup_id in ids[1:]:
-            self.cancel_task(dup_id)
+            self.cancel_task(task_id=dup_id)
         return ids[0], len(ids) - 1
 
-    def extend_claim(self, run_id: str, by_secs: int) -> None:
+    def extend_claim(self, *, run_id: str, by_secs: int) -> None:
         """Push a running lease forward (heartbeat for long steps)."""
         if by_secs <= 0:
             raise ValueError("by_secs must be > 0")
@@ -600,6 +601,7 @@ class DurableEngine:
 
     def checkpoint(
         self,
+        *,
         task_id: str,
         step_name: str,
         fn: Callable[[], T],
@@ -640,7 +642,7 @@ class DurableEngine:
             ).fetchone()
         return _loads(stored["state"])
 
-    def get_checkpoint(self, task_id: str, step_name: str) -> Any:
+    def get_checkpoint(self, *, task_id: str, step_name: str) -> Any:
         """Return a stored checkpoint payload, or ``None`` if absent."""
         row = (
             self._conn()
@@ -659,7 +661,7 @@ class DurableEngine:
     # of any task and survives cleanup(). Use it for durable cross-task memory:
     # cursors, watermarks, "have I already processed this?" records, etc.
 
-    def get_state(self, namespace: str, key: str, default: Any = None) -> Any:
+    def get_state(self, *, namespace: str, key: str, default: Any = None) -> Any:
         """Return the value stored at ``(namespace, key)``, or ``default``."""
         row = (
             self._conn()
@@ -680,7 +682,7 @@ class DurableEngine:
         )
         return row is not None
 
-    def set_state(self, namespace: str, key: str, value: Any) -> None:
+    def set_state(self, *, namespace: str, key: str, value: Any) -> None:
         """Store ``value`` at ``(namespace, key)`` (upsert, last write wins)."""
         with self._tx() as conn:
             conn.execute(
@@ -691,7 +693,7 @@ class DurableEngine:
                 (namespace, key, _dumps(value), _fmt(self._now())),
             )
 
-    def set_state_many(self, namespace: str, items: Mapping[str, Any]) -> int:
+    def set_state_many(self, *, namespace: str, items: Mapping[str, Any]) -> int:
         """Upsert many ``key -> value`` entries under ``namespace`` in one
         transaction. Much faster than a loop of :meth:`set_state` for bulk
         imports (one commit, not one per key). Returns the number written.
@@ -708,7 +710,7 @@ class DurableEngine:
             )
         return len(rows)
 
-    def delete_state(self, namespace: str, key: str) -> bool:
+    def delete_state(self, *, namespace: str, key: str) -> bool:
         """Delete ``(namespace, key)``. Returns ``True`` if it existed."""
         with self._tx() as conn:
             cur = conn.execute(
@@ -731,6 +733,7 @@ class DurableEngine:
 
     def update_state(
         self,
+        *,
         namespace: str,
         key: str,
         fn: Callable[[Any], Any],
@@ -761,7 +764,7 @@ class DurableEngine:
 
     # -- events ------------------------------------------------------------
 
-    def emit_event(self, event_name: str, payload: Any = None) -> None:
+    def emit_event(self, *, event_name: str, payload: Any = None) -> None:
         """Emit a named signal (first write wins) and wake its waiters."""
         now = self._now()
         now_str = _fmt(now)
@@ -798,6 +801,7 @@ class DurableEngine:
 
     def await_event(
         self,
+        *,
         run_id: str,
         task_id: str,
         step_name: str,
@@ -896,6 +900,7 @@ class DurableEngine:
 
     def wait_for_event(
         self,
+        *,
         run_id: str,
         task_id: str,
         step_name: str,
@@ -910,7 +915,11 @@ class DurableEngine:
         inside handlers; use :meth:`await_event` when you need the raw tuple.
         """
         should_suspend, payload = self.await_event(
-            run_id, task_id, step_name, event_name, timeout_secs
+            run_id=run_id,
+            task_id=task_id,
+            step_name=step_name,
+            event_name=event_name,
+            timeout_secs=timeout_secs,
         )
         if should_suspend:
             raise WorkflowSuspended(task_id)

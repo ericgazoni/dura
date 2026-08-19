@@ -16,7 +16,7 @@ def db_path(tmp_path):
 
 def test_close_removes_wal_sidecars(db_path):
     engine = DurableEngine(db_path)
-    engine.spawn_task("t", {})  # forces a WAL write -> -wal/-shm appear
+    engine.spawn_task(name="t", params={})  # forces a WAL write -> -wal/-shm appear
 
     engine.close()
 
@@ -30,8 +30,13 @@ def test_worker_stops_on_event_when_idle(db_path):
     stop = threading.Event()
     worker = threading.Thread(
         target=run_worker,
-        args=(engine, {}, "w", stop),
-        kwargs={"poll_interval": 0.05},
+        args=(engine,),
+        kwargs={
+            "handlers": {},
+            "worker_id": "w",
+            "stop_event": stop,
+            "poll_interval": 0.05,
+        },
     )
     worker.start()
     stop.set()
@@ -47,12 +52,17 @@ def test_worker_finishes_in_flight_task_before_stopping(db_path):
     def handler(_engine, _task):
         ran.set()
 
-    engine.spawn_task("job", {})
+    engine.spawn_task(name="job", params={})
     stop = threading.Event()
     worker = threading.Thread(
         target=run_worker,
-        args=(engine, {"job": handler}, "w", stop),
-        kwargs={"poll_interval": 0.02},
+        args=(engine,),
+        kwargs={
+            "handlers": {"job": handler},
+            "worker_id": "w",
+            "stop_event": stop,
+            "poll_interval": 0.02,
+        },
     )
     worker.start()
 

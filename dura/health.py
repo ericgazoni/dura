@@ -65,6 +65,7 @@ def _make_handler(heartbeat: Heartbeat, max_silence_seconds: float):
 
 
 def start_metrics_and_health_server(
+    *,
     port: int,
     heartbeat: Heartbeat,
     max_silence_seconds: float,

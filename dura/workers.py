@@ -30,6 +30,7 @@ _SETTLE_RACE = (InvalidRunState, TaskNotFound, TaskCancelledError)
 
 def process_task(
     engine: DurableEngine,
+    *,
     handlers: dict[str, Callable],
     task: ClaimedTask,
     worker_id: str = "worker",
@@ -66,7 +67,7 @@ def process_task(
         logger.exception("Failed %r task_id=%s: %s", task.name, task.task_id[:8], exc)
         reason = {"type": type(exc).__name__, "message": str(exc)}
         try:
-            engine.fail_run(task.run_id, reason)
+            engine.fail_run(run_id=task.run_id, reason=reason)
         except _SETTLE_RACE as settle_exc:
             logger.warning(
                 "Run %s no longer ours; not failing it: %s",
@@ -76,7 +77,7 @@ def process_task(
         return
 
     try:
-        engine.complete_run(task.run_id, result)
+        engine.complete_run(run_id=task.run_id, result=result)
         logger.debug(
             "Completed %r task_id=%s worker=%s", task.name, task.task_id[:8], worker_id
         )
@@ -90,10 +91,10 @@ def process_task(
 
 def run_worker(
     engine: DurableEngine,
+    *,
     handlers: dict[str, Callable],
     worker_id: str,
     stop_event: threading.Event,
-    *,
     heartbeat: Heartbeat | None = None,
     claim_timeout_secs: int = 120,
     poll_interval: float = 1.0,
@@ -112,7 +113,7 @@ def run_worker(
 
             try:
                 task = engine.claim_task(
-                    worker_id,
+                    worker_id=worker_id,
                     timeout_secs=claim_timeout_secs,
                     max_priority=max_priority,
                 )
@@ -128,7 +129,7 @@ def run_worker(
                     task.task_id[:8],
                     task.attempt,
                 )
-                process_task(engine, handlers, task, worker_id)
+                process_task(engine, handlers=handlers, task=task, worker_id=worker_id)
             except Exception:
                 # Anything escaping claim/process (e.g. a transient "database is
                 # locked" under write contention) must not kill this thread --
@@ -146,9 +147,9 @@ def run_worker(
 
 def run_workers(
     engine: DurableEngine,
+    *,
     handlers: dict,
     worker_count: int,
-    *,
     heartbeat: Heartbeat | None = None,
     handle_signals: bool = True,
     lanes: list[tuple[int, int]] | None = None,
@@ -177,8 +178,14 @@ def run_workers(
                 threading.Thread(
                     target=run_worker,
                     name=f"worker_{worker_id}",
-                    args=(engine, handlers, f"worker_{worker_id}", stop_event),
-                    kwargs={"heartbeat": heartbeat, "max_priority": max_priority},
+                    args=(engine,),
+                    kwargs={
+                        "handlers": handlers,
+                        "worker_id": f"worker_{worker_id}",
+                        "stop_event": stop_event,
+                        "heartbeat": heartbeat,
+                        "max_priority": max_priority,
+                    },
                     daemon=True,
                 )
             )
@@ -190,8 +197,13 @@ def run_workers(
             threading.Thread(
                 target=run_worker,
                 name=f"worker_{worker_id}",
-                args=(engine, handlers, f"worker_{worker_id}", stop_event),
-                kwargs={"heartbeat": heartbeat},
+                args=(engine,),
+                kwargs={
+                    "handlers": handlers,
+                    "worker_id": f"worker_{worker_id}",
+                    "stop_event": stop_event,
+                    "heartbeat": heartbeat,
+                },
                 daemon=True,
             )
         )
