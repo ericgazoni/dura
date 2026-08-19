@@ -5,14 +5,11 @@
    tools:
      python: "3.13"
    jobs:
-     # We recommend using a requirements file for reproducible builds.
-     # This is just a quick example to get started.
-     # https://docs.readthedocs.io/page/guides/reproducible-builds.html
      install:
-       - pip install zensical
+       - pip install zensical mkdocstrings[python]
      build:
        html:
-         - zensical build
+         - zensical build --clean
      post_build:
        - mkdir -p $READTHEDOCS_OUTPUT/html/
        - cp --recursive site/* $READTHEDOCS_OUTPUT/html/

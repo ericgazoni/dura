@@ -7,6 +7,14 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
 
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/ericgazoni/dura"
+Documentation = "https://ericgazoni.github.io/dura/"
+Issues = "https://github.com/ericgazoni/dura/issues"
+
 [dependency-groups]
 dev = [
     "mkdocstrings>=1.0.6",
@@ -17,5 +25,5 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
