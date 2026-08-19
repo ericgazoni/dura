@@ -1,0 +1,20 @@
+[project]
+name = "dura"
+version = "0.1.0"
+description = "A SQLite-backed durable execution engine and worker pool"
+authors = [{ name = "Eric Gazoni", email = "eric@adimian.com" }]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "prometheus-client>=0.26.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
