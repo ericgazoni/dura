@@ -19,7 +19,7 @@ cluster to operate.
   app running? Recipes for retries, checkpoints, events, durable state,
   priorities, worker pools, and health checks.
 - **[Reference](reference/engine.md)**: the full API for `DurableEngine`,
-  the worker pool, and the health/metrics server.
+  the worker pool, and the liveness heartbeat.
 - **[Explanation](explanation/durability-model.md)**: how the durability
   model actually works, and when `dura` is (and isn't) the right tool.
 
@@ -29,6 +29,8 @@ cluster to operate.
 pip install dura
 ```
 
-`dura` requires Python 3.13 or later and has one runtime dependency,
-[`prometheus-client`](https://github.com/prometheus/client_python), for the
-`/metrics` endpoint.
+`dura` requires Python 3.13 or later and has zero runtime dependencies. It
+starts no servers and registers nothing with any metrics library on your
+behalf; see [how to expose health checks and
+metrics](how-to/expose-health-and-metrics.md) for wiring up liveness probes
+and observability yourself.

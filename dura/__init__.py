@@ -16,7 +16,7 @@ from dura.engine import (
     TaskRef,
     WorkflowSuspended,
 )
-from dura.health import Heartbeat, start_metrics_and_health_server
+from dura.health import Heartbeat
 from dura.workers import process_task, run_worker, run_workers
 
 __all__ = [
@@ -34,5 +34,4 @@ __all__ = [
     "process_task",
     "run_worker",
     "run_workers",
-    "start_metrics_and_health_server",
 ]

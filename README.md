@@ -1,6 +1,6 @@
 # dura
 
-A small, SQLite-backed durable execution engine and worker pool for Python.
+A small, embeddable, SQLite-backed durable execution engine and worker pool for Python.
 
 `dura` runs entirely inside your process: one SQLite database holds every
 task, run, checkpoint, event, wait and durable key-value entry, so scheduled
@@ -35,14 +35,17 @@ Kubernetes or systemd.
 - **Graceful worker pool** - a threaded pool with signal handling
   (SIGINT/SIGTERM), a bounded shutdown grace period, and clean WAL
   checkpointing on close.
-- **Health and metrics** - a `Heartbeat` plus an HTTP server exposing
-  `/healthz` (pool-wide liveness) and `/metrics` (Prometheus) on one port.
+- **Health, no dependencies imposed** - a `Heartbeat` for pool-wide
+  liveness that opens no sockets and starts no threads; expose it however
+  fits your app, and query the SQLite database directly for metrics.
 
 ## Installation
 
 ```bash
 pip install dura
 ```
+
+`dura` has zero runtime dependencies.
 
 ## Quick start
 
@@ -200,16 +203,17 @@ processes or machines against the same database file.
 
 ### Health and metrics
 
-```python
-from dura import Heartbeat, start_metrics_and_health_server
+`run_workers` takes an optional `heartbeat: Heartbeat | None = None`.
+When you do need liveness (e.g. under Kubernetes), `Heartbeat` is a plain
+in-memory object: it opens no sockets and starts no threads - so `dura`
+never imposes an HTTP server or a metrics library on your app; you expose
+`seconds_since_beat()` however fits your app. 
 
-heartbeat = Heartbeat()
-start_metrics_and_health_server(port=8080, heartbeat=heartbeat, max_silence_seconds=30)
-```
-
-`/healthz` reports unhealthy only when every worker has stopped beating -
-i.e. the whole pool is wedged - so a merely idle pool stays healthy. `/metrics`
-serves whatever is registered with `prometheus_client`'s default registry.
+For metrics, query the SQLite
+database directly - `engine.ready_run_count()` gives you queue depth, or
+query the `tasks`/`runs` tables yourself for anything else, safely from
+another process since it's opened in WAL mode. See [how to expose health
+checks and metrics](docs/how-to/expose-health-and-metrics.md) for the full recipe.
 
 See the docstrings in `dura/engine.py` and `dura/workers.py` for the full
 API, including cancellation, claim extension, and lane-based worker pools.
