@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 SHUTDOWN_GRACE_SECONDS = 10.0
 
 # A run can be settled by another worker between the time this one claimed it
-# and the time it tries to settle it -- e.g. if this worker stalled past its
-# lease, the run is reclaimed and may be completed elsewhere. These are the
+# and the time it tries to settle it (e.g. if this worker stalled past its
+# lease, the run is reclaimed and may be completed elsewhere). These are the
 # states that signals "this run is no longer ours"; we drop it rather than crash.
 _SETTLE_RACE = (InvalidRunState, TaskNotFound, TaskCancelledError)
 
@@ -132,7 +132,7 @@ def run_worker(
                 process_task(engine, handlers=handlers, task=task, worker_id=worker_id)
             except Exception:
                 # Anything escaping claim/process (e.g. a transient "database is
-                # locked" under write contention) must not kill this thread --
+                # locked" under write contention) must not kill this thread,
                 # that would silently shrink the pool with no health-check
                 # signal. Log it and keep cycling; poll_interval avoids a tight
                 # spin if the error is persistent.

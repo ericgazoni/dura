@@ -566,3 +566,66 @@ def test_cancel_duplicate_tasks_ignores_terminal_tasks(engine, clock):
     assert survivor == active.task_id
     assert cancelled == 0
     assert engine.get_task(completed.task_id).state == "completed"
+
+
+# -- observability -----------------------------------------------------------
+
+
+def test_task_counts_by_state(engine):
+    engine.spawn_task(name="a", params={})
+    engine.spawn_task(name="b", params={})
+    run = engine.claim_task(worker_id="w")
+    engine.complete_run(run_id=run.run_id, result={})
+
+    assert engine.task_counts_by_state() == {"pending": 1, "completed": 1}
+
+
+def test_task_counts_by_state_omits_empty_states(engine):
+    engine.spawn_task(name="a", params={})
+
+    assert engine.task_counts_by_state() == {"pending": 1}
+
+
+def test_task_counts_by_name_and_state(engine):
+    engine.spawn_task(name="a", params={})
+    engine.spawn_task(name="a", params={})
+    run = engine.claim_task(worker_id="w")
+    engine.complete_run(run_id=run.run_id, result={})
+    engine.spawn_task(name="b", params={})
+
+    assert engine.task_counts_by_name_and_state() == {
+        "a": {"pending": 1, "completed": 1},
+        "b": {"pending": 1},
+    }
+
+
+def test_recent_failures_reports_newest_first_with_reason(engine, clock):
+    engine.spawn_task(name="a", params={}, max_attempts=1)
+    run_a = engine.claim_task(worker_id="w")
+    engine.fail_run(run_id=run_a.run_id, reason={"type": "ValueError", "message": "bad a"})
+
+    clock.advance(1)
+    engine.spawn_task(name="b", params={}, max_attempts=1)
+    run_b = engine.claim_task(worker_id="w")
+    engine.fail_run(run_id=run_b.run_id, reason={"type": "ValueError", "message": "bad b"})
+
+    failures = engine.recent_failures(limit=10)
+
+    assert [f.task_name for f in failures] == ["b", "a"]
+    assert failures[0].failure_reason == {"type": "ValueError", "message": "bad b"}
+    assert failures[0].run_id == run_b.run_id
+
+
+def test_recent_failures_respects_limit(engine):
+    for _ in range(3):
+        ref = engine.spawn_task(name="a", params={}, max_attempts=1)
+        run = engine.claim_task(worker_id="w")
+        engine.fail_run(run_id=run.run_id, reason={"type": "E", "message": ref.task_id})
+
+    assert len(engine.recent_failures(limit=2)) == 2
+
+
+def test_recent_failures_empty_when_nothing_failed(engine):
+    engine.spawn_task(name="a", params={})
+
+    assert engine.recent_failures() == []

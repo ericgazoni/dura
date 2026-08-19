@@ -209,11 +209,13 @@ in-memory object: it opens no sockets and starts no threads - so `dura`
 never imposes an HTTP server or a metrics library on your app; you expose
 `seconds_since_beat()` however fits your app. 
 
-For metrics, query the SQLite
-database directly - `engine.ready_run_count()` gives you queue depth, or
-query the `tasks`/`runs` tables yourself for anything else, safely from
-another process since it's opened in WAL mode. See [how to expose health
-checks and metrics](docs/how-to/expose-health-and-metrics.md) for the full recipe.
+For metrics, `DurableEngine` exposes the common queries directly -
+`ready_run_count()` for queue depth, `task_counts_by_state()` and
+`task_counts_by_name_and_state()` for a breakdown, `recent_failures(limit=...)`
+for the last N failures and their reason - or query the `tasks`/`runs`
+tables yourself for anything else, safely from another process since the
+database is opened in WAL mode. See [how to expose health checks and
+metrics](docs/how-to/expose-health-and-metrics.md) for the full recipe.
 
 See the docstrings in `dura/engine.py` and `dura/workers.py` for the full
 API, including cancellation, claim extension, and lane-based worker pools.

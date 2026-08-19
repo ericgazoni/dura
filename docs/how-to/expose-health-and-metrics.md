@@ -53,32 +53,48 @@ interval plus typical handler duration), so a probe restart isn't triggered
 by ordinary idle periods. A script or desktop app that doesn't need a
 liveness probe can just skip `heartbeat` entirely (it defaults to `None`).
 
-## Metrics: query the database directly
+## Metrics: read the built-in queries, or query the database yourself
 
 `dura` doesn't ship a metrics registry, exporter, or HTTP endpoint, and
-doesn't register anything with any observability library you use --
-that would be one more opinion imposed on an app that may already have its
-own. Every task, run, checkpoint, and event lives in one SQLite file opened
-in WAL mode, so a separate read-only process (or a thread in the same
-process) can query it directly while the workers run:
+doesn't register anything with any observability library you use, that
+would be one more opinion imposed on an app that may already have its own.
+Instead, `DurableEngine` exposes the handful of queries most people end up
+writing by hand:
+
+```python
+engine.ready_run_count()
+# -> 7  (claimable right now, across all priorities: the queue-depth gauge)
+
+engine.task_counts_by_state()
+# -> {"pending": 5, "running": 2, "completed": 140, "failed": 3}
+
+engine.task_counts_by_name_and_state()
+# -> {"send_file": {"pending": 3, "completed": 90}, "charge_card": {"failed": 3, "completed": 50}}
+
+engine.recent_failures(limit=20)
+# -> [FailureInfo(run_id=..., task_id=..., task_name="charge_card", attempt=3,
+#                  failed_at="2026-08-19T10:03:11+00:00",
+#                  failure_reason={"type": "TimeoutError", "message": "..."}), ...]
+```
+
+These run as plain `SELECT`s on the engine's own connection: no new
+process, no special setup. Feed whatever you sample into your own metrics
+system (Prometheus, StatsD, logs, whatever your app already uses) on
+whatever schedule you like.
+
+For anything these don't cover, every task, run, checkpoint, and event
+lives in one SQLite file opened in WAL mode, so a separate read-only
+process (or a thread in the same process) can query it directly while the
+workers run:
 
 ```python
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
 conn = sqlite3.connect("file:engine.db?mode=ro", uri=True)
-pending = conn.execute(
-    "SELECT COUNT(*) FROM runs WHERE state IN ('pending', 'sleeping')"
-).fetchone()[0]
-
 one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
 failed_last_hour = conn.execute(
     "SELECT COUNT(*) FROM runs WHERE state = 'failed' AND failed_at > ?",
     (one_hour_ago,),
 ).fetchone()[0]
 ```
-
-`DurableEngine.ready_run_count()` wraps the common "how deep is the queue"
-query if you don't want to hand-write SQL. From there, feed whatever you
-sample into your own metrics system (Prometheus, StatsD, logs, whatever
-your app already uses) on whatever schedule you like.

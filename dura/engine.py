@@ -212,6 +212,18 @@ class TaskInfo:
     failure_reason: Any = None
 
 
+@dataclass(frozen=True, kw_only=True)
+class FailureInfo:
+    """One failed run, as returned by ``DurableEngine.recent_failures``."""
+
+    run_id: str
+    task_id: str
+    task_name: str
+    attempt: int
+    failed_at: str
+    failure_reason: Any
+
+
 def _new_id() -> str:
     return uuid.uuid4().hex
 
@@ -979,6 +991,55 @@ class DurableEngine:
             .fetchone()
         )
         return row["n"]
+
+    def task_counts_by_state(self) -> dict[str, int]:
+        """Number of tasks in each state, e.g. ``{"pending": 3, "failed": 1}``.
+
+        States with no tasks are omitted rather than reported as zero.
+        """
+        rows = self._conn().execute(
+            "SELECT state, COUNT(*) AS n FROM tasks GROUP BY state"
+        )
+        return {row["state"]: row["n"] for row in rows}
+
+    def task_counts_by_name_and_state(self) -> dict[str, dict[str, int]]:
+        """Task counts grouped by ``task_name``, then by ``state``.
+
+        e.g. ``{"send_file": {"pending": 2, "completed": 5}}``. Names and
+        states with no matching tasks are omitted.
+        """
+        rows = self._conn().execute(
+            "SELECT task_name, state, COUNT(*) AS n FROM tasks "
+            "GROUP BY task_name, state"
+        )
+        counts: dict[str, dict[str, int]] = {}
+        for row in rows:
+            counts.setdefault(row["task_name"], {})[row["state"]] = row["n"]
+        return counts
+
+    def recent_failures(self, *, limit: int = 20) -> list[FailureInfo]:
+        """The most recent failed runs, newest first, with their reason.
+
+        Includes every failed attempt, not just a task's latest one: a task
+        retried three times and failed each time contributes three entries.
+        """
+        rows = self._conn().execute(
+            "SELECT r.run_id, r.task_id, t.task_name, r.attempt, r.failed_at, "
+            "r.failure_reason FROM runs r JOIN tasks t ON t.task_id = r.task_id "
+            "WHERE r.state = 'failed' ORDER BY r.failed_at DESC LIMIT ?",
+            (limit,),
+        )
+        return [
+            FailureInfo(
+                run_id=row["run_id"],
+                task_id=row["task_id"],
+                task_name=row["task_name"],
+                attempt=row["attempt"],
+                failed_at=row["failed_at"],
+                failure_reason=_loads(row["failure_reason"]),
+            )
+            for row in rows
+        ]
 
     def cleanup(self, ttl: timedelta = timedelta(days=30)) -> int:
         """Delete terminal tasks (and their rows) older than ``ttl``.

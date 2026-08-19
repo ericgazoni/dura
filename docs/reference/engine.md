@@ -19,6 +19,8 @@ re-exported from the top-level `dura` package.
 
 ::: dura.engine.TaskInfo
 
+::: dura.engine.FailureInfo
+
 ## Exceptions
 
 ::: dura.engine.EngineError
