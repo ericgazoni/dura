@@ -87,24 +87,24 @@ def import_report(engine, task):
 
 If the process dies after `download` completes but before `load` runs, a
 retry re-executes the handler but `download` returns its stored result
-immediately - the SFTP fetch does not happen twice.
+immediately: the SFTP fetch does not happen twice.
 
 ## Learn more
 
-This README only covers the basics. The [full
-documentation](https://ericgazoni.github.io/dura/) has a step-by-step
-[tutorial](https://ericgazoni.github.io/dura/tutorial/), and how-to guides
-for the more involved topics: [retries](https://ericgazoni.github.io/dura/how-to/configure-retries/),
-[durable state](https://ericgazoni.github.io/dura/how-to/use-durable-state/),
-[events and waiting](https://ericgazoni.github.io/dura/how-to/wait-for-events/),
-[composing and chaining tasks](https://ericgazoni.github.io/dura/how-to/compose-tasks/),
-[recurring tasks](https://ericgazoni.github.io/dura/how-to/schedule-recurring-tasks/),
-[priorities and lanes](https://ericgazoni.github.io/dura/how-to/prioritize-tasks/),
-[running a worker pool](https://ericgazoni.github.io/dura/how-to/run-worker-pool/),
-and [health checks and metrics](https://ericgazoni.github.io/dura/how-to/expose-health-and-metrics/) -
-plus an [API reference](https://ericgazoni.github.io/dura/reference/engine/) and an
-[explanation of the durability model and when `dura` is (and isn't) the right
-tool](https://ericgazoni.github.io/dura/explanation/durability-model/).
+This README only covers the basics. See the [full documentation](https://ericgazoni.github.io/dura/):
+
+- [Tutorial](https://ericgazoni.github.io/dura/tutorial/): build a task, run it, crash it on purpose, watch it recover.
+- How-to guides:
+  - [Retries](https://ericgazoni.github.io/dura/how-to/configure-retries/)
+  - [Durable state](https://ericgazoni.github.io/dura/how-to/use-durable-state/)
+  - [Events and waiting](https://ericgazoni.github.io/dura/how-to/wait-for-events/)
+  - [Composing and chaining tasks](https://ericgazoni.github.io/dura/how-to/compose-tasks/)
+  - [Schedule recurring tasks](https://ericgazoni.github.io/dura/how-to/schedule-recurring-tasks/)
+  - [Priorities and lanes](https://ericgazoni.github.io/dura/how-to/prioritize-tasks/)
+  - [Running a worker pool](https://ericgazoni.github.io/dura/how-to/run-worker-pool/)
+  - [Health checks and metrics](https://ericgazoni.github.io/dura/how-to/expose-health-and-metrics/)
+- [API reference](https://ericgazoni.github.io/dura/reference/engine/): the full `DurableEngine`, worker pool, and heartbeat API.
+- [Explanation](https://ericgazoni.github.io/dura/explanation/durability-model/): how the durability model works, and when `dura` is (and isn't) the right tool.
 
 ## Development
 
