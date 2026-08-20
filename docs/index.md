@@ -24,6 +24,10 @@ pip install dura
 - **[Tutorial: your first durable task](tutorial.md)**: new to `dura`?
   Build a task, run it, crash it on purpose, and watch it pick up where it
   left off.
+- **[Examples: polling an API, fanning out, and
+  rescheduling](examples/poll-hacker-news.md)**: a complete, realistic
+  script combining fan-out, checkpoints, durable state, events, and
+  recurring scheduling in one program.
 - **[How-to guides](how-to/configure-retries.md)**: already have a `dura`
   app running? Recipes for retries, checkpoints, events, durable state,
   priorities, worker pools, and health checks.

@@ -11,6 +11,7 @@ edit_uri = "edit/main/docs/"
 nav = [
   { "Home" = "index.md" },
   { "Tutorial" = "tutorial.md" },
+  { "Full Walkthrough" = "examples/poll-hacker-news.md" },
   { "How-to guides" = [
     { "Configure retries" = "how-to/configure-retries.md" },
     { "Checkpoint steps" = "how-to/checkpoint-steps.md" },
@@ -140,7 +141,8 @@ pymdownx.keys = {}
 pymdownx.magiclink = {}
 pymdownx.mark = {}
 pymdownx.smartsymbols = {}
-# pymdownx.snippets.base_path = "includes"
+pymdownx.snippets.base_path = "."
+pymdownx.snippets.check_paths = true
 pymdownx.superfences.custom_fences = [
   { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
 ]

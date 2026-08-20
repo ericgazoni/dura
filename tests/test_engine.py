@@ -18,7 +18,6 @@ from dura.engine import (
     WorkflowSuspended,
 )
 
-
 # -- spawn -----------------------------------------------------------------
 
 
@@ -602,12 +601,16 @@ def test_task_counts_by_name_and_state(engine):
 def test_recent_failures_reports_newest_first_with_reason(engine, clock):
     engine.spawn_task(name="a", params={}, max_attempts=1)
     run_a = engine.claim_task(worker_id="w")
-    engine.fail_run(run_id=run_a.run_id, reason={"type": "ValueError", "message": "bad a"})
+    engine.fail_run(
+        run_id=run_a.run_id, reason={"type": "ValueError", "message": "bad a"}
+    )
 
     clock.advance(1)
     engine.spawn_task(name="b", params={}, max_attempts=1)
     run_b = engine.claim_task(worker_id="w")
-    engine.fail_run(run_id=run_b.run_id, reason={"type": "ValueError", "message": "bad b"})
+    engine.fail_run(
+        run_id=run_b.run_id, reason={"type": "ValueError", "message": "bad b"}
+    )
 
     failures = engine.recent_failures(limit=10)
 

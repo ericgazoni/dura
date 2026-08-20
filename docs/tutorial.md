@@ -18,30 +18,15 @@ pip install dura
 
 ## 1. Write a task
 
-Create a file called `import_report.py`:
+Create a file called `charge_order.py`:
 
 ```python
-from dura import DurableEngine, run_workers
-
-
-def import_report(engine, task):
-    print(f"Importing {task.params['uri']}")
-    return {"rows": 3}
-
-
-engine = DurableEngine("engine.db")
-engine.spawn_task(
-    name="import_report",
-    params={"uri": "/report.csv"},
-    idempotency_key="report-2026-01",
-)
-
-run_workers(engine, handlers={"import_report": import_report}, worker_count=2)
+--8<-- "examples/charge_order_once.py"
 ```
 
 `DurableEngine("engine.db")` opens a SQLite file (creating it on the first
 run) that holds everything `dura` needs to track. `spawn_task` records the
-intent to run `import_report` with those params.
+intent to run `charge_order` with those params.
 
 We also give it an `idempotency_key`: a name we choose for this task, so
 we can look it back up later without noting down some ID `dura` generated
@@ -51,13 +36,13 @@ and run tasks against `handlers`, and blocks until you stop it.
 ## 2. Run it
 
 ```bash
-python import_report.py
+python charge_order.py
 ```
 
 You should see:
 
 ```
-Importing /report.csv
+charged cust_9 4200c
 ```
 
 The task ran and completed almost instantly. `run_workers` is still
@@ -67,31 +52,21 @@ claiming new tasks, lets any in-flight handler finish, and exits.
 ## 3. Look at what happened
 
 Because everything is recorded in `engine.db`, we can inspect the task from
-a completely separate script. Create `check_task.py`:
+a completely separate script. Create `check_charge_order.py`:
 
 ```python
-from dura import DurableEngine
-
-engine = DurableEngine("engine.db")
-ref = engine.spawn_task(
-    name="import_report",
-    params={"uri": "/report.csv"},
-    idempotency_key="report-2026-01",
-)
-task = engine.get_task(ref.task_id)
-print(task.state)
-print(task.result)
+--8<-- "examples/check_charge_order.py"
 ```
 
 Run it:
 
 ```bash
-python check_task.py
+python check_charge_order.py
 ```
 
 ```
 completed
-{'rows': 3}
+{'order_id': 'ord_42'}
 ```
 
 Two things are worth noticing here.
@@ -101,60 +76,17 @@ task's outcome lives in the database file, not in memory.
 
 Second, calling `spawn_task` again with the same `idempotency_key` didn't
 create a second task. It returned the existing one, which is exactly what
-lets `check_task.py` find the right task without ever handling a
+lets `check_charge_order.py` find the right task without ever handling a
 `task_id` by hand. You'll reuse this same script again in step 5, pointed
 at a different task.
 
 ## 4. Make a step durable
 
-A real import usually has more than one step, and some of them are worth
-protecting individually. Replace the contents of `import_report.py` with:
+A real charge usually has more than one step, and some of them are worth
+protecting individually. Replace the contents of `charge_order.py` with:
 
 ```python
-import threading
-import time
-from dura import DurableEngine, run_worker
-
-
-def fetch_rows(uri):
-    print(f"Downloading {uri} (this only happens once)")
-    return [1, 2, 3]
-
-
-def load_rows(rows):
-    print(f"Loading {len(rows)} rows")
-    return True
-
-
-def import_report(engine, task):
-    print(f"Attempt {task.attempt}")
-    rows = engine.checkpoint(
-        task_id=task.task_id,
-        step_name="download",
-        fn=lambda: fetch_rows(task.params["uri"]),
-    )
-    time.sleep(8)  # pretend loading takes a while
-    engine.checkpoint(
-        task_id=task.task_id, step_name="load", fn=lambda: load_rows(rows)
-    )
-    print("Done")
-    return {"rows": len(rows)}
-
-
-engine = DurableEngine("engine.db")
-engine.spawn_task(
-    name="import_report",
-    params={"uri": "/report.csv"},
-    idempotency_key="report-2026-02",
-)
-
-run_worker(
-    engine,
-    handlers={"import_report": import_report},
-    worker_id="tutorial-worker",
-    stop_event=threading.Event(),
-    claim_timeout_secs=5,
-)
+--8<-- "examples/charge_order_durable.py"
 ```
 
 A few things changed.
@@ -168,34 +100,34 @@ We also swapped `run_workers` (a pool of several workers) for
 a short 5-second `claim_timeout_secs`, so we don't have to wait out the
 default 2-minute lease in the next step.
 
-And we gave `spawn_task` a new `idempotency_key`, `"report-2026-02"`
-instead of `"report-2026-01"`. This is a different task from the one in
+And we gave `spawn_task` a new `idempotency_key`, `"charge-2026-02"`
+instead of `"charge-2026-01"`. This is a different task from the one in
 steps 1 to 3, which already completed.
 
 Run it:
 
 ```bash
-python import_report.py
+python charge_order.py
 ```
 
 You'll see:
 
 ```
 Attempt 1
-Downloading /report.csv (this only happens once)
+charged cust_9 4200c (this only happens once)
 ```
 
-Then it pauses for 8 seconds, simulating a slow load step. While it's
-paused, open another terminal in the same directory and kill it hard, the
-way a crash or an out-of-memory kill would:
+Then it pauses for 8 seconds, simulating a slow step, sending the
+receipt. While it's paused, open another terminal in the same directory
+and kill it hard, the way a crash or an out-of-memory kill would:
 
 ```bash
-pkill -9 -f import_report.py
+pkill -9 -f charge_order.py
 ```
 
 The process is gone. No exception, no cleanup, nothing. As far as `dura`
 is concerned, the run is still `running`, and its worker still holds a
-claim on it. `engine.db` shows a completed `download` checkpoint and a run
+claim on it. `engine.db` shows a completed `charge` checkpoint and a run
 that never finished.
 
 ## 5. Restart and recover
@@ -204,12 +136,12 @@ Wait about 5 seconds (long enough for the claim's lease to expire), then
 run the exact same command again:
 
 ```bash
-python import_report.py
+python charge_order.py
 ```
 
 ```
 Attempt 1
-Loading 3 rows
+receipt sent to cust_9 for ord_42
 Done
 ```
 
@@ -217,24 +149,24 @@ Notice two things:
 
 - It says `Attempt 1`, not attempt 2. A crash isn't a logical failure, so
   reclaiming an abandoned run doesn't consume a retry.
-- It didn't print "Downloading..." again. The `download` checkpoint was
-  already stored, so `dura` returned that result straight away and moved
-  on to `load`.
+- It didn't charge the card again. The `charge` checkpoint was already
+  stored, so `dura` returned that result straight away and moved on to
+  `receipt`.
 
 Once you see `Done`, stop the script the same way as before:
-`pkill -9 -f import_report.py`, since it's still waiting for more work.
+`pkill -9 -f charge_order.py`, since it's still waiting for more work.
 
-Then confirm the outcome. Open `check_task.py` from step 3, change its
-`idempotency_key` to `"report-2026-02"` to match the task this section
-built, and run it again:
+Then confirm the outcome. Open `check_charge_order.py` from step 3,
+change its `idempotency_key` to `"charge-2026-02"` to match the task this
+section built, and run it again:
 
 ```bash
-python check_task.py
+python check_charge_order.py
 ```
 
 ```
 completed
-{'rows': 3}
+{'charged': True}
 ```
 
 You've now built a task that survives a hard crash mid-step, without
@@ -249,3 +181,7 @@ losing progress or re-running from scratch. That's the core guarantee
   [`DurableEngine` reference](reference/engine.md).
 - Read [About the durability model](explanation/durability-model.md) for
   how leases, checkpoints, and SQLite's locking fit together.
+- The scripts in this tutorial, and the batch-processing example from
+  the README, are runnable as-is in the
+  [`examples/`](https://github.com/ericgazoni/dura/tree/main/examples)
+  folder.

@@ -11,7 +11,7 @@ your app (an HTTP route, a CLI command, a log line, a test).
 """
 
 import time
-from typing import Callable
+from collections.abc import Callable
 
 
 class Heartbeat:

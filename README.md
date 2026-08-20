@@ -130,7 +130,8 @@ for order in fetch_pending_orders():
 run_workers(engine, handlers={"charge_order": charge_order}, worker_count=2)
 ```
 
-Save this as `quickstart.py` and run it with `python quickstart.py`. It
+Save this as `quickstart.py` and run
+it with `python quickstart.py`. It
 charges its way through 20 orders, two at a time. Press Ctrl+C partway
 through, before it reaches the last one. `dura` stops claiming new work,
 lets what's in flight finish, and exits.
@@ -160,6 +161,8 @@ This README only covers the basics. See the [full documentation](https://ericgaz
   - [Health checks and metrics](https://ericgazoni.github.io/dura/how-to/expose-health-and-metrics/)
 - [API reference](https://ericgazoni.github.io/dura/reference/engine/): the full `DurableEngine`, worker pool, and heartbeat API.
 - [Explanation](https://ericgazoni.github.io/dura/explanation/durability-model/): how the durability model works, and when `dura` is (and isn't) the right tool.
+- [A complete example](https://ericgazoni.github.io/dura/examples/poll-hacker-news/): polling an API, fanning out, checkpointing, and rescheduling in one script.
+- [`examples/`](examples/): this quick start and every script above, runnable as-is.
 
 ## Development
 

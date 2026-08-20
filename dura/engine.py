@@ -33,11 +33,12 @@ import random
 import sqlite3
 import threading
 import uuid
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping, TypeVar
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -234,7 +235,7 @@ def _fmt(dt: datetime) -> str:
     Fixed width + always-UTC guarantees that string ordering in SQL matches
     chronological ordering.
     """
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f+00:00")
 
 
 def _retry_delay(strategy: dict[str, Any] | None, failed_attempt: int) -> float:
@@ -268,7 +269,7 @@ class DurableEngine:
         busy_timeout_ms: int = 5000,
     ) -> None:
         self._db_path = str(db_path)
-        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._clock = clock or (lambda: datetime.now(UTC))
         self._busy_timeout_ms = busy_timeout_ms
         self._local = threading.local()
         self._conn().executescript(_SCHEMA)
@@ -283,7 +284,7 @@ class DurableEngine:
     def _now(self) -> datetime:
         now = self._clock()
         if now.tzinfo is None:
-            now = now.replace(tzinfo=timezone.utc)
+            now = now.replace(tzinfo=UTC)
         return now
 
     def _conn(self) -> sqlite3.Connection:

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -32,7 +32,7 @@ def clock_start() -> datetime:
     """The instant ``clock`` starts at. Override in a module that needs a
     specific 'now' (e.g. business-date filtering) without redefining ``clock``
     or ``engine``."""
-    return datetime(2026, 1, 1, tzinfo=timezone.utc)
+    return datetime(2026, 1, 1, tzinfo=UTC)
 
 
 @pytest.fixture

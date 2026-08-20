@@ -2,11 +2,11 @@ import logging
 import signal
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from dura.engine import (
-    DurableEngine,
     ClaimedTask,
+    DurableEngine,
     InvalidRunState,
     TaskCancelledError,
     TaskNotFound,
@@ -64,7 +64,7 @@ def process_task(
         logger.debug("Task %s was cancelled", task.task_id[:8])
         return
     except Exception as exc:
-        logger.exception("Failed %r task_id=%s: %s", task.name, task.task_id[:8], exc)
+        logger.exception("Failed %r task_id=%s: %s", task.name, task.task_id[:8], exc)  # noqa
         reason = {"type": type(exc).__name__, "message": str(exc)}
         try:
             engine.fail_run(run_id=task.run_id, reason=reason)
