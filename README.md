@@ -4,74 +4,59 @@
 [![Documentation](https://img.shields.io/badge/docs-ericgazoni.github.io%2Fdura-blue)](https://ericgazoni.github.io/dura/)
 [![License](https://img.shields.io/pypi/l/dura.svg)](https://github.com/ericgazoni/dura/blob/main/LICENSE)
 
-`dura` is built to be tough as nails: a laptop that goes to sleep mid-script,
-a process that gets OOM-killed mid-charge, a server that loses power
-mid-order, a device that drops off the network for an hour - none of it
-should be able to take your work down with it. Without a plan for that,
-interrupted work either happens twice (a customer charged twice, a
-duplicate email) or silently never resumes (a stuck order nobody notices
-until a customer complains).
+Long jobs get interrupted: a laptop sleeps, a process gets killed, a
+server loses power, a connection drops. Without a plan for that, the work
+either runs twice (a customer charged twice, a duplicate email) or
+silently stalls (a stuck order nobody notices until a customer
+complains).
 
-`dura` picks interrupted work back up exactly where it left off - never
-redoing what already succeeded, never losing track of what's left - and
-it earns that toughness by depending on nothing: no message broker, no
-workflow server, no database cluster, not even a network connection.
-Everything lives in one SQLite file inside your own process, so there is
-nothing else that can go down, drift out of sync with reality, or need
-its own on-call rotation. Fewer moving parts, fewer ways to break.
+`dura` picks that work back up exactly where it left off, without
+redoing anything that already succeeded. It needs nothing else to do
+that: no message broker, no workflow server, no database cluster, not
+even a network connection. Everything lives in one SQLite file. 
+Fewer moving parts, fewer ways to break.
 
-That's also what makes it the hands-on alternative to heavier setups like
-[Edda](https://github.com/i2y/edda) or
+You can turn a script into a durable workflow in five minutes, 
+or make a small app crash-proof with a few lines of code.
+
+It is designed for workflows where interruptions or breaks are expected, but side-effects are a problem.
+It's already tested and running in production doing exactly that.
+
+It's a lighter, hands-on alternative to setups like
+[Edda](https://github.com/i2y/edda) and
 [Absurd](https://earendil-works.github.io/absurd/), both of which
-inspired it: wrap a script in a durable task in five minutes, then reuse
-the same primitives to grow it into a small daemon that shrugs off
-crashes, restarts, and dropped connections.
-
-It's built for a single process, or a handful of independent ones: a
-script you want to be able to kill and re-run safely, a simple
-application that can't afford to fail outright, or a device that can't
-rely on networked resources at all (embedded hardware, intermittent
-connectivity, air-gapped environments) - and it's already running in
-production doing exactly that.
-
-It's not built to coordinate work
-across many machines or services sharing one queue; see [scope and
+inspired served as inspiration.
+See [scope and
 alternatives](https://ericgazoni.github.io/dura/explanation/scope-and-alternatives/)
-for that boundary and what to reach for instead.
+for that boundary, and what to reach for instead.
 
 Full documentation: **https://ericgazoni.github.io/dura/**
 
 ## Key features
 
-- **Depends on nothing** - the entire engine is one SQLite file: no
-  broker, server, or cluster to run alongside your app, and no network
-  connection required at all. There's nothing else that can be down.
-- **Durable tasks and runs** - a task is the logical job; each execution
-  attempt is a run. Crashes reclaim in-flight runs automatically (leases
-  expire and are picked back up) without consuming a retry, since a crash is
-  not a logical failure.
-- **Retries with backoff** - `none`, `fixed`, or `exponential` retry
-  strategies with jitter, configured per task.
-- **Checkpoints** - durable memoization of a step's result, keyed to the
-  task. A checkpointed step runs at most once, even across a crash and
-  retry of the surrounding handler.
-- **Durable key-value state** - a namespaced store for cross-task memory
-  (cursors, watermarks, dedup records) that outlives the tasks that wrote
-  it and is never touched by cleanup.
-- **Events and suspend/resume** - a handler can wait on a named event with
-  an optional timeout; the run parks itself (freeing the worker) and is
-  woken by `emit_event` or by the timeout, without polling.
-- **Priorities and lanes** - tasks carry a priority; worker "lanes" can be
-  restricted to claim only up to a given priority ceiling, so a backlog of
-  low-priority work never starves latency-sensitive tasks.
-- **Idempotent enqueue** - `spawn_task(..., idempotency_key=...)` returns
+- **Depends on nothing**: one SQLite file. No broker, server, or cluster
+  to run, and no network connection required.
+- **Durable tasks and runs**: a task is the job, each attempt is a run.
+- **Retries with backoff**: `none`, `fixed`, or `exponential` strategies
+  with jitter, configured per task.
+- **Checkpoints**: memoize a step's result, keyed to the task. A
+  checkpointed step runs _at most once_, even across a crash and retry.
+- **Durable key-value state**: a namespaced key-value store for cross-task memory
+  (cursors, watermarks, dedup records).
+- **Events and suspend/resume**: a handler waits on a named event, with
+  an optional timeout. The run parks itself and wakes on `emit_event` or
+  the timeout, no polling.
+- **Priorities and lanes**: tasks carry a priority, and worker "lanes"
+  can be restricted to a priority ceiling, so bulk work never starves
+  urgent tasks.
+- **Idempotent enqueue**: `spawn_task(..., idempotency_key=...)` returns
   the existing task instead of creating a duplicate.
-- **Graceful worker pool** - a threaded pool with signal handling
-  (SIGINT/SIGTERM), a bounded shutdown grace period, and clean WAL
-  checkpointing on close.
-- **Health, no dependencies imposed** - a `Heartbeat` for pool-wide
-  liveness that opens no sockets and starts no threads; expose it however
-  fits your app, and query the SQLite database directly for metrics.
+- **Graceful worker pool**: signal handling (SIGINT/SIGTERM), a bounded
+  shutdown grace period, and clean WAL checkpointing on close.
+- **Health, no dependencies imposed**: a `Heartbeat` for pool-wide
+  liveness that opens no sockets and starts no threads. Expose it
+  however fits your app, and query the SQLite database directly for
+  metrics.
 
 ## Installation
 
@@ -142,22 +127,21 @@ for order in fetch_pending_orders():
         idempotency_key=f"charge_order:{order.id}",
     )
 
-run_workers(engine, handlers={"charge_order": charge_order}, worker_count=4)
+run_workers(engine, handlers={"charge_order": charge_order}, worker_count=2)
 ```
 
 Save this as `quickstart.py` and run it with `python quickstart.py`. It
-starts charging its way through 20 orders, four at a time; press
-**Ctrl+C** partway through, well before it reaches the last one. `dura`
-stops claiming new work, lets whatever's currently in flight finish, and
-exits.
+charges its way through 20 orders, two at a time. Press Ctrl+C partway
+through, before it reaches the last one. `dura` stops claiming new work,
+lets what's in flight finish, and exits.
 
-Run the script again: the orders that were already charged don't get
-charged twice - `idempotency_key` on `spawn_task` skips re-queuing them,
-and the `charge` checkpoint means a charge that already succeeded is
-never retried - while the ones the batch hadn't reached yet pick up right
-where it left off. Reach for `kill -9` instead of Ctrl+C and it recovers
-exactly the same way: `dura` doesn't depend on a graceful shutdown to
-stay correct, only to be tidy about it.
+Run the script again. The orders already charged don't get charged
+twice: `idempotency_key` skips re-queuing them, and the `charge`
+checkpoint means a successful charge is never retried. The orders the
+batch hadn't reached yet just pick up where it left off.
+
+Note: a `kill -9` instead of Ctrl+C recovers the same way. `dura` doesn't need
+a graceful shutdown to stay correct, only to be tidy about it.
 
 ## Learn more
 

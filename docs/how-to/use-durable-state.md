@@ -26,8 +26,8 @@ been written.
 
 If two workers might update the same key concurrently (incrementing a
 counter, appending to a dedup set), don't do a `get_state` followed by a
-`set_state`; there's a race between them. Use `update_state` instead,
-which runs your function inside the write transaction:
+`set_state`: there's a race between them. Use `update_state` instead. It
+runs your function inside the write transaction.
 
 ```python
 def bump(current):
@@ -63,6 +63,6 @@ engine.delete_state(namespace="poller:orders", key="cursor")  # True if it exist
 
 ## Remember: state is not cleaned up
 
-Unlike checkpoints, durable state is never touched by `cleanup()`; it's
+Unlike checkpoints, durable state is never touched by `cleanup()`. It's
 meant to survive the tasks that wrote it. If a value really is scoped to
 one task's lifetime, use a [checkpoint](checkpoint-steps.md) instead.

@@ -42,10 +42,10 @@ engine.spawn_task(
   capped at `max_seconds` if you set it.
 - Leave `retry` unset (or use `kind="none"`, the default) for no delay.
 
-Some jitter is added on top of the computed delay by default, to avoid many
-failed tasks retrying in lockstep; tune it with `jitter_factor` or set it to
-`0` to disable it. See the [`RetryStrategy` reference](../reference/engine.md)
-for every field and its default.
+By default, some jitter is added on top of the computed delay, to avoid
+many failed tasks retrying in lockstep. Tune it with `jitter_factor`, or
+set it to `0` to disable it. See the [`RetryStrategy`
+reference](../reference/engine.md) for every field and its default.
 
 ## Give retries a lower priority than fresh work, or not
 

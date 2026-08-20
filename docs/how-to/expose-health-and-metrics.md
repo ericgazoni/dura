@@ -20,14 +20,16 @@ engine = DurableEngine("engine.db")
 run_workers(engine, handlers=handlers, worker_count=4, heartbeat=heartbeat)
 ```
 
-Every worker in the pool beats `heartbeat` once per loop iteration, whether
-it just claimed a task or found none, so it reflects the health of the pool
-as a whole, not any single worker. A pool that's simply idle, with no work
-to claim, keeps beating; only a fully wedged pool (every worker blocked,
-e.g. all stuck on a dead downstream dependency) goes silent.
+Every worker in the pool beats `heartbeat` once per loop iteration,
+whether it just claimed a task or found none. That reflects the health
+of the pool as a whole, not any single worker.
 
-`Heartbeat` is a plain in-memory object (it opens no sockets and starts no
-threads) so exposing it is entirely up to you and your app's existing
+A pool that's simply idle, with no work to claim, keeps beating. Only a
+fully wedged pool goes silent: every worker blocked, say all stuck on a
+dead downstream dependency.
+
+`Heartbeat` is a plain in-memory object: it opens no sockets and starts
+no threads. Exposing it is entirely up to you and your app's existing
 supervision. For example, with your own HTTP server:
 
 ```python
@@ -55,11 +57,11 @@ liveness probe can just skip `heartbeat` entirely (it defaults to `None`).
 
 ## Metrics: read the built-in queries, or query the database yourself
 
-`dura` doesn't ship a metrics registry, exporter, or HTTP endpoint, and
-doesn't register anything with any observability library you use, that
-would be one more opinion imposed on an app that may already have its own.
-Instead, `DurableEngine` exposes the handful of queries most people end up
-writing by hand:
+`dura` doesn't ship a metrics registry, exporter, or HTTP endpoint. It
+doesn't register anything with any observability library either: that
+would be one more opinion imposed on an app that may already have its
+own. Instead, `DurableEngine` exposes the handful of queries most people
+end up writing by hand:
 
 ```python
 engine.ready_run_count()
@@ -82,9 +84,9 @@ process, no special setup. Feed whatever you sample into your own metrics
 system (Prometheus, StatsD, logs, whatever your app already uses) on
 whatever schedule you like.
 
-For anything these don't cover, every task, run, checkpoint, and event
-lives in one SQLite file opened in WAL mode, so a separate read-only
-process (or a thread in the same process) can query it directly while the
+For anything these don't cover: every task, run, checkpoint, and event
+lives in one SQLite file opened in WAL mode. A separate read-only process
+(or a thread in the same process) can query it directly while the
 workers run:
 
 ```python

@@ -34,11 +34,12 @@ by default). `run_workers` then:
    sidecar files.
 
 A handler still running when the grace period expires is abandoned, not
-killed; that's safe, since its run's lease will simply expire and get
-reclaimed on the next start, the same as a crash. If your handlers can
-legitimately take longer than that to reach a safe stopping point, design
-them around checkpoints (see [How to checkpoint
-steps](checkpoint-steps.md)) rather than relying on a longer grace period.
+killed. That's safe: its run's lease simply expires and gets reclaimed on
+the next start, the same as a crash.
+
+If your handlers can legitimately take longer than that to reach a safe
+stopping point, design them around checkpoints (see [How to checkpoint
+steps](checkpoint-steps.md)) instead of relying on a longer grace period.
 
 ## Extend a claim for a long step
 
@@ -60,10 +61,10 @@ def handler(engine, task):
 engine.cancel_task(task_id)
 ```
 
-This marks the task and any of its non-terminal runs `cancelled` and
+This marks the task and any of its non-terminal runs `cancelled`, and
 clears any pending waits. A worker that later tries to settle a cancelled
-run gets `TaskCancelledError`; `process_task` already handles that for you
-and simply drops the run.
+run gets `TaskCancelledError`. `process_task` already handles that for
+you and simply drops the run.
 
 ## Drive the engine yourself instead
 

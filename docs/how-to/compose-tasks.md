@@ -35,17 +35,16 @@ def summarize_report(engine, task):
 ```
 
 The checkpoint stores the child's `task_id` (a plain string, so it's
-JSON-serializable), and returns it unchanged on any later call for the
-same `(task_id, "spawn_next")` instead of calling `spawn_task` again. See
-[How to checkpoint steps](checkpoint-steps.md) for the underlying
-mechanism.
+JSON-serializable). Any later call for the same `(task_id, "spawn_next")`
+returns that same id instead of calling `spawn_task` again. See [How to
+checkpoint steps](checkpoint-steps.md) for the underlying mechanism.
 
 ## Fan a task out into many sub-tasks
 
 To have one task create several independent sub-tasks, spawn them in a
-loop, and give each an idempotency key derived from the parent's
-`task_id` and something that varies per child, so a retry of the parent
-doesn't spawn the batch twice:
+loop. Give each an idempotency key derived from the parent's `task_id`
+plus something that varies per child, so a retry of the parent doesn't
+spawn the batch twice:
 
 ```python
 def start_batch_import(engine, task):
@@ -62,8 +61,8 @@ def start_batch_import(engine, task):
 ```
 
 `dura` doesn't track a parent/child relationship between these tasks
-itself; passing `batch_id` through `params` the way this example does is
-how the sub-tasks find their way back to the batch they belong to.
+itself. Passing `batch_id` through `params`, the way this example does,
+is how the sub-tasks find their way back to the batch they belong to.
 
 ## Fan back in: know when every sub-task is done
 
@@ -114,9 +113,9 @@ def notify_batch_complete(engine, task):
     send_notification(task.params["batch_id"])
 ```
 
-Because `emit_event` is first-write-wins regardless of whether the
-waiter registered before or after the last `import_file` finished, it
-doesn't matter which task gets claimed first; see [How to wait for
+Because `emit_event` is first-write-wins, it doesn't matter whether the
+waiter registers before or after the last `import_file` finishes, or
+which task gets claimed first. See [How to wait for
 events](wait-for-events.md) and [How to use durable
 state](use-durable-state.md) for the primitives this pattern is built
 from.

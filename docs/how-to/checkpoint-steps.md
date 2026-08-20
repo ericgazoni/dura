@@ -26,29 +26,31 @@ def import_report(engine, task):
 
 The first time `checkpoint` runs for a given `(task_id, step_name)`, it
 calls `fn`, stores the result, and returns it. Every later call for that
-same task and step name, whether from a retry after `fail_run`, or from a
-worker reclaiming an abandoned run after a crash, returns the stored
-result immediately and does not call `fn` again.
+same task and step name returns the stored result immediately, without
+calling `fn` again. That's true whether the call comes from a retry after
+`fail_run`, or from a worker reclaiming an abandoned run after a crash.
 
 ## Choose step names carefully
 
 Checkpoints are keyed on `(task_id, step_name)`, not on where in the code
 the call appears. If a handler runs the same logical step twice with the
-same `step_name` (for example, inside a loop), the second call will get the
-first call's result. Give each logically distinct step its own name; if you
-need to checkpoint something per loop iteration, fold the iteration index
-into the step name (`f"row-{i}"`).
+same `step_name` (say, inside a loop), the second call just gets the
+first call's result.
+
+Give each logically distinct step its own name. For a step inside a
+loop, fold the iteration index into the step name, like `f"row-{i}"`.
 
 ## Keep `fn` itself fast to retry, slow to run
 
 `fn` executes outside `dura`'s write transaction, so a slow step (an SFTP
-fetch, an S3 upload) doesn't hold the database lock. But `fn` is *not*
-guarded against running concurrently with itself: if two workers happen to
-claim the same run at once (which `dura` otherwise prevents via leases),
-whichever commits first "wins" and the other's result is discarded in
-favor of the stored one. In practice, a single run is only ever claimed by
-one worker at a time, so this only matters if you're calling `checkpoint`
-directly outside the normal claim/complete lifecycle.
+fetch, an S3 upload) doesn't hold the database lock. But `fn` isn't
+guarded against running concurrently with itself. If two workers somehow
+claimed the same run at once, which `dura`'s leases otherwise prevent,
+whichever commits first wins, and the other's result is discarded.
+
+In practice, a single run is only ever claimed by one worker at a time.
+This only matters if you're calling `checkpoint` directly, outside the
+normal claim/complete lifecycle.
 
 ## Read a checkpoint without risking a computation
 

@@ -5,9 +5,8 @@ icon: lucide/copy-check
 # How to avoid enqueuing the same task twice
 
 This guide shows you how to make `spawn_task` safe to call more than once
-for what is logically the same piece of work, for example from a
-retried API request, a redelivered webhook, or a script that might be run
-twice by mistake.
+for what is logically the same piece of work: a retried API request, a
+redelivered webhook, a script that might run twice by mistake.
 
 ## Pass an idempotency key
 
@@ -34,7 +33,7 @@ if not ref.created:
     print(f"already enqueued as {ref.task_id}")
 ```
 
-When a task already exists for that key, no new task or run is created;
+When a task already exists for that key, no new task or run is created.
 `ref.task_id` and `ref.run_id` point at the existing ones instead.
 
 ## Collapse duplicates created before you added a key
@@ -48,5 +47,5 @@ surviving_id, cancelled_count = engine.cancel_duplicate_tasks("charge_card")
 ```
 
 This keeps the oldest non-terminal task with that name and cancels the
-rest. It's meant for a one-off cleanup, not routine use; going forward,
+rest. It's meant for a one-off cleanup, not routine use. Going forward,
 prevent duplicates at the source with `idempotency_key` instead.

@@ -6,9 +6,18 @@ icon: lucide/house
 
 `dura` is a small, SQLite-backed durable execution engine and worker pool
 for Python. One database file holds every task, run, checkpoint, event,
-wait and durable key-value entry, so scheduled work survives crashes and
+wait, and durable key-value entry. Scheduled work survives crashes and
 restarts without a separate workflow server, message broker, or database
-cluster to operate.
+cluster.
+
+
+## Installation
+
+```bash
+pip install dura
+```
+
+`dura` requires Python 3.13 or later and has zero runtime dependencies.
 
 ## Where to start
 
@@ -22,15 +31,3 @@ cluster to operate.
   the worker pool, and the liveness heartbeat.
 - **[Explanation](explanation/durability-model.md)**: how the durability
   model actually works, and when `dura` is (and isn't) the right tool.
-
-## Installation
-
-```bash
-pip install dura
-```
-
-`dura` requires Python 3.13 or later and has zero runtime dependencies. It
-starts no servers and registers nothing with any metrics library on your
-behalf; see [how to expose health checks and
-metrics](how-to/expose-health-and-metrics.md) for wiring up liveness probes
-and observability yourself.
