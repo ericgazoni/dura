@@ -157,7 +157,7 @@ def summarize_batch(engine, task):
 
 
 # --8<-- [start:wiring]
-engine = DurableEngine("engine.db")
+engine = DurableEngine("poll_hacker_news.db")
 engine.spawn_task(
     name="poll_top_stories",
     params={"run_number": 0},

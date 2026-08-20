@@ -50,6 +50,20 @@ def test_failing_handler_fails_the_run(engine):
     assert engine.get_task(task.task_id).state == "pending"
 
 
+def test_missing_handler_fails_without_retry(engine):
+    # No handler for "t" (e.g. code changed, or the queue is shared with
+    # another app). Retrying would just repeat the same failure forever, so
+    # this must fail the run outright instead of leaving it pending.
+    task = _claim(engine)
+
+    process_task(engine, handlers={}, task=task)
+
+    info = engine.get_task(task.task_id)
+    assert info.state == "failed"
+    assert info.failure_reason["type"] == "UnknownTaskName"
+    assert engine.claim_task(worker_id="w") is None
+
+
 def test_suspended_then_resumed_completes(engine):
     task = _claim(engine)
 

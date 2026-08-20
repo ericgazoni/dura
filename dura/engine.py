@@ -484,8 +484,16 @@ class DurableEngine:
             )
             conn.execute("DELETE FROM waits WHERE run_id = ?", (run_id,))
 
-    def fail_run(self, *, run_id: str, reason: dict[str, Any]) -> None:
-        """Mark a run as failed and schedule a retry if attempts remain."""
+    def fail_run(
+        self, *, run_id: str, reason: dict[str, Any], retryable: bool = True
+    ) -> None:
+        """Mark a run as failed and schedule a retry if attempts remain.
+
+        ``retryable=False`` skips scheduling a retry regardless of attempts
+        remaining, and fails the task outright. Use it for failures a retry
+        can never fix, e.g. no handler is registered for the task's name (a
+        deploy/config problem, not a transient one).
+        """
         now = self._now()
         now_str = _fmt(now)
         with self._tx() as conn:
@@ -510,7 +518,7 @@ class DurableEngine:
 
             next_attempt = attempt + 1
             max_attempts = task["max_attempts"]
-            if max_attempts is None or next_attempt <= max_attempts:
+            if retryable and (max_attempts is None or next_attempt <= max_attempts):
                 strategy = (
                     _loads(task["retry_strategy"]) if task["retry_strategy"] else None
                 )

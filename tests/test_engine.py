@@ -193,6 +193,20 @@ def test_no_retry_when_max_attempts_is_one(engine):
     assert engine.get_task(ref.task_id).state == "failed"
 
 
+def test_fail_run_not_retryable_fails_immediately_despite_attempts_remaining(engine):
+    # max_attempts=None would normally retry forever; retryable=False overrides
+    # that for failures a retry can never fix (e.g. no handler registered).
+    ref = engine.spawn_task(name="t", params={})
+
+    run = engine.claim_task(worker_id="w")
+    engine.fail_run(run_id=run.run_id, reason={"error": "fatal"}, retryable=False)
+
+    info = engine.get_task(ref.task_id)
+    assert info.state == "failed"
+    assert info.failure_reason == {"error": "fatal"}
+    assert engine.claim_task(worker_id="w") is None
+
+
 # -- delayed tasks ---------------------------------------------------------
 
 

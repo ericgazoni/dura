@@ -47,7 +47,7 @@ def charge_order(engine, task):
     return {"charged": task.params["order_id"]}
 
 
-engine = DurableEngine("engine.db")
+engine = DurableEngine("quickstart.db")
 
 for order in fetch_pending_orders():
     engine.spawn_task(

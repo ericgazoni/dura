@@ -43,14 +43,45 @@ def process_task(
       event; we leave it alone (neither completed nor failed)
     * handler raises TaskCancelledError -> the engine already marked it
       cancelled; nothing to do
+    * no handler is registered for the task's name -> the run is failed
+      without a retry (see below)
     * any other exception -> the run is failed (and retried per its strategy)
 
     Settling (complete/fail) tolerates the run having been reclaimed and settled
     by another worker while this one was busy: that is logged, not raised, so a
     lease-expiry race never crashes the worker thread.
+
+    A missing handler is not treated like a handler-raised exception: retrying
+    it would just repeat the same ``KeyError`` forever (by default, instantly
+    and without limit), since no amount of retrying registers the handler. It
+    usually means the task was enqueued by different code than is now running
+    (e.g. a renamed task, a stale queue shared with another app), so the run is
+    failed outright, once, with a reason that says why.
     """
+    handler = handlers.get(task.name)
+    if handler is None:
+        logger.error(
+            "No handler registered for %r task_id=%s; failing without retry. "
+            "Check that this worker's `handlers` includes this task name, and "
+            "that its database isn't shared with another app's queue.",
+            task.name,
+            task.task_id[:8],
+        )
+        reason = {
+            "type": "UnknownTaskName",
+            "message": f"no handler registered for {task.name!r}",
+        }
+        try:
+            engine.fail_run(run_id=task.run_id, reason=reason, retryable=False)
+        except _SETTLE_RACE as settle_exc:
+            logger.warning(
+                "Run %s no longer ours; not failing it: %s",
+                task.task_id[:8],
+                settle_exc,
+            )
+        return
+
     try:
-        handler = handlers[task.name]
         result = handler(engine, task)
     except WorkflowSuspended:
         # The handler parked the run via engine.wait_for_event(). It will be
