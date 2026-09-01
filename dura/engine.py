@@ -29,6 +29,7 @@ worker thread coordinates with the others through SQLite's own file locking.
 from __future__ import annotations
 
 import json
+import math
 import random
 import sqlite3
 import threading
@@ -46,6 +47,10 @@ T = TypeVar("T")
 # by the scheduler. Stored in the same fixed format as every other timestamp so
 # lexicographic comparison in SQL matches chronological order.
 _INFINITY = "9999-12-31T23:59:59.999999+00:00"
+
+# Backoff ceiling applied when a strategy sets no ``max_seconds``.
+# Unlimited *attempts* is a supported choice; an unlimited *interval* is not.
+_DEFAULT_BACKOFF_CEILING_MULTIPLIER = 100
 
 _TERMINAL_STATES = ("completed", "failed", "cancelled")
 
@@ -155,6 +160,9 @@ class WorkflowSuspended(EngineError):
     """
 
 
+_RETRY_KINDS = ("none", "fixed", "exponential")
+
+
 @dataclass(frozen=True, kw_only=True)
 class RetryStrategy:
     """How a failed task should be retried.
@@ -162,7 +170,10 @@ class RetryStrategy:
     * ``none``        - no delay between attempts
     * ``fixed``       - always wait ``base_seconds``
     * ``exponential`` - ``base_seconds * factor ** (attempt - 1)``, capped at
-      ``max_seconds`` when set
+      ``max_seconds``, or at 100x ``base_seconds`` when ``max_seconds`` is
+      unset. The delay is always capped: a task may retry forever (leave
+      ``max_attempts`` unset), but the wait between attempts may not grow
+      forever.
     """
 
     kind: str = "none"
@@ -170,6 +181,31 @@ class RetryStrategy:
     factor: float = 2.0
     max_seconds: float | None = None
     jitter_factor: float = 0.2
+
+    def __post_init__(self) -> None:
+        if self.kind not in _RETRY_KINDS:
+            raise ValueError(f"kind must be one of {_RETRY_KINDS}, got {self.kind!r}")
+        if self.base_seconds < 0:
+            raise ValueError(f"base_seconds must be >= 0, got {self.base_seconds!r}")
+        if self.factor <= 0:
+            raise ValueError(f"factor must be > 0, got {self.factor!r}")
+        if self.max_seconds is not None and self.max_seconds <= 0:
+            raise ValueError(f"max_seconds must be > 0, got {self.max_seconds!r}")
+        if self.max_seconds is not None and self.max_seconds < self.base_seconds:
+            raise ValueError(
+                "max_seconds "
+                f"({self.max_seconds!r}) must be >= base_seconds ({self.base_seconds!r})"
+            )
+        if self.jitter_factor < 0:
+            raise ValueError(f"jitter_factor must be >= 0, got {self.jitter_factor!r}")
+        if self.kind == "exponential":
+            if self.base_seconds == 0:
+                raise ValueError("exponential backoff requires base_seconds > 0")
+            if self.factor <= 1.0:
+                raise ValueError(
+                    "exponential backoff requires factor > 1.0 "
+                    "(use kind='fixed' for a constant delay)"
+                )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -248,10 +284,24 @@ def _retry_delay(strategy: dict[str, Any] | None, failed_attempt: int) -> float:
     elif kind == "exponential":
         base = float(strategy.get("base_seconds", 30))
         factor = float(strategy.get("factor", 2.0))
-        delay = base * (factor ** max(failed_attempt - 1, 0))
         max_seconds = strategy.get("max_seconds")
-        if max_seconds is not None:
-            delay = min(delay, float(max_seconds))
+        ceiling = (
+            float(max_seconds)
+            if max_seconds is not None
+            else base * _DEFAULT_BACKOFF_CEILING_MULTIPLIER
+        )
+        exponent = max(failed_attempt - 1, 0)
+        if base > 0 and factor > 1.0:
+            # A task with no max_attempts retries forever, so failed_attempt is
+            # unbounded and ``factor ** exponent`` overflows a float once the
+            # exponent passes ~1024. Every exponent past the one that first
+            # crosses the ceiling yields the same clamped delay, so stop there
+            # and never compute the huge power.
+            capped = (
+                math.ceil(math.log(ceiling / base, factor)) if ceiling > base else 0
+            )
+            exponent = min(exponent, capped)
+        delay = min(base * (factor**exponent), ceiling)
     else:
         return 0.0
     jitter_factor = float(strategy.get("jitter_factor", 0.2))

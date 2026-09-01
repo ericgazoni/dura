@@ -16,6 +16,7 @@ from dura.engine import (
     TaskCancelledError,
     TaskNotFound,
     WorkflowSuspended,
+    _retry_delay,
 )
 
 # -- spawn -----------------------------------------------------------------
@@ -182,6 +183,59 @@ def test_exponential_backoff_delays_next_attempt(engine, clock):
     retried = engine.claim_task(worker_id="w")
     assert retried is not None
     assert retried.attempt == 2
+
+
+def test_backoff_is_capped_at_max_seconds_for_unbounded_attempts():
+    """A task with no max_attempts retries forever; the delay must not.
+
+    ``factor ** (attempt - 1)`` overflows a float once the exponent passes
+    ~1024, which used to crash the worker in ``fail_run``.
+    """
+    strategy = RetryStrategy(
+        kind="exponential", base_seconds=30, max_seconds=3600, jitter_factor=0.0
+    ).to_dict()
+
+    assert _retry_delay(strategy, 1) == 30
+    assert _retry_delay(strategy, 8) == 3600
+    assert _retry_delay(strategy, 5_000) == 3600
+
+
+def test_backoff_without_max_seconds_falls_back_to_a_ceiling():
+    strategy = RetryStrategy(
+        kind="exponential", base_seconds=30, jitter_factor=0.0
+    ).to_dict()
+
+    assert _retry_delay(strategy, 5_000) == 3000
+
+
+# -- RetryStrategy validation -----------------------------------------------
+
+
+def test_retry_strategy_accepts_sane_configs():
+    RetryStrategy(kind="none")
+    RetryStrategy(kind="fixed", base_seconds=60)
+    RetryStrategy(kind="exponential", base_seconds=30, factor=2.0, max_seconds=3600)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"kind": "linear"},  # not a supported kind
+        {"base_seconds": -1},
+        {"factor": 0},
+        {"factor": -2.0},
+        {"max_seconds": 0},
+        {"max_seconds": -10},
+        {"base_seconds": 100, "max_seconds": 10},  # cap below the base delay
+        {"jitter_factor": -0.1},
+        {"kind": "exponential", "base_seconds": 0},  # the OverflowError trigger
+        {"kind": "exponential", "factor": 1.0},  # never grows: not backoff
+        {"kind": "exponential", "factor": 0.5},  # shrinks: not backoff
+    ],
+)
+def test_retry_strategy_rejects_bad_values(kwargs):
+    with pytest.raises(ValueError):
+        RetryStrategy(**kwargs)
 
 
 def test_no_retry_when_max_attempts_is_one(engine):
