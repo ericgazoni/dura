@@ -35,7 +35,11 @@ Full documentation: **https://ericgazoni.github.io/dura/**
 ## Key features
 
 - **Depends on nothing**: one SQLite file. No broker, server, or cluster
-  to run, and no network connection required.
+  to run, and no network connection required. Keep that file on local
+  or block storage, not a network filesystem (NFS, CephFS, etc.) — WAL
+  mode's locking doesn't work reliably there. See [the durability
+  model](https://ericgazoni.github.io/dura/explanation/durability-model/#how-dura-lets-many-workers-share-one-sqlite-file-safely)
+  for why.
 - **Durable tasks and runs**: a task is the job, each attempt is a run.
 - **Retries with backoff**: `none`, `fixed`, or `exponential` strategies
   with jitter, configured per task.

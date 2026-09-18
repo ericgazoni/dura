@@ -316,7 +316,7 @@ class DurableEngine:
         db_path: str | Path,
         *,
         clock: Callable[[], datetime] | None = None,
-        busy_timeout_ms: int = 5000,
+        busy_timeout_ms: int = 30_000,
     ) -> None:
         self._db_path = str(db_path)
         self._clock = clock or (lambda: datetime.now(UTC))

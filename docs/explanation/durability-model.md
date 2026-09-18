@@ -176,6 +176,15 @@ processes or machines writing to the same file concurrently. See [About
 scope and alternatives](scope-and-alternatives.md) for what to reach for
 when you outgrow that.
 
+Put `engine.db` on local or block storage, not a network filesystem
+(NFS, CephFS, etc.). WAL mode depends on shared-memory-backed locking
+between connections (the `-shm` file), and most network filesystems
+don't implement that correctly, so lock waits become unpredictable and
+you'll see `database is locked` errors regardless of `busy_timeout_ms`.
+If you must run against network-backed storage, raise
+`busy_timeout_ms` (default `30_000`) enough to ride out its latency,
+but treat that as a mitigation, not a fix.
+
 ## How dura keeps long-lived data from being deleted by accident
 
 **Checkpoints** and durable state look similar: both are persisted,

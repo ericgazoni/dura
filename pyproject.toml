@@ -1,6 +1,6 @@
 [project]
 name = "dura"
-version = "1.2.0"
+version = "1.2.1"
 description = "A SQLite-backed durable execution engine and worker pool"
 authors = [{ name = "Eric Gazoni", email = "eric@adimian.com" }]
 readme = "README.md"
