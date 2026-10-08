@@ -461,9 +461,9 @@ class DurableEngine:
         now = self._now()
         now_str = _fmt(now)
         expires_str = _fmt(now + timedelta(seconds=timeout_secs))
-        # A sentinel well above any real priority lets the general (unrestricted)
-        # case share the same query as the lane case.
-        priority_ceil = max_priority if max_priority is not None else 10_000
+        # SQLite's max INTEGER: genuinely no ceiling, so the unrestricted case
+        # can share the same query as the lane case without capping priority.
+        priority_ceil = max_priority if max_priority is not None else 2**63 - 1
 
         with self._tx() as conn:
             conn.execute(
