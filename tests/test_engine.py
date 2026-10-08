@@ -589,6 +589,25 @@ def test_cleanup_removes_old_terminal_tasks(engine, clock):
         engine.get_task(ref.task_id)
 
 
+def test_cleanup_spans_multiple_batches(engine, clock):
+    # Regression: cleanup() used to delete everything in one transaction;
+    # it now commits in batches of _CLEANUP_BATCH_SIZE. Exercise a backlog
+    # bigger than one batch and check every task is still removed.
+    from dura.engine import _CLEANUP_BATCH_SIZE
+
+    refs = []
+    for _ in range(_CLEANUP_BATCH_SIZE + 1):
+        ref = engine.spawn_task(name="t", params={})
+        engine.complete_run(run_id=engine.claim_task(worker_id="w").run_id)
+        refs.append(ref)
+
+    clock.advance(timedelta(days=31).total_seconds())
+    assert engine.cleanup(ttl=timedelta(days=30)) == len(refs)
+    for ref in refs:
+        with pytest.raises(TaskNotFound):
+            engine.get_task(ref.task_id)
+
+
 # -- cancel_duplicate_tasks ------------------------------------------------
 
 

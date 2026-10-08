@@ -54,6 +54,11 @@ _DEFAULT_BACKOFF_CEILING_MULTIPLIER = 100
 
 _TERMINAL_STATES = ("completed", "failed", "cancelled")
 
+# cleanup() commits one transaction per batch of this many tasks, rather than
+# one transaction for the whole backlog, so a large overdue cleanup doesn't
+# hold the write lock long enough to stall every worker in the pool.
+_CLEANUP_BATCH_SIZE = 500
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tasks (
     task_id           TEXT PRIMARY KEY,
@@ -1105,23 +1110,33 @@ class DurableEngine:
 
         Durable ``state`` is deliberately left untouched: it is meant to outlive
         the tasks that wrote it. Returns the number of tasks removed.
+
+        Runs in batches of ``_CLEANUP_BATCH_SIZE`` tasks per transaction, so a
+        large overdue cleanup doesn't hold the write lock continuously and
+        stall every worker in the pool for its whole duration.
         """
         cutoff = _fmt(self._now() - ttl)
-        with self._tx() as conn:
-            ids = [
-                r["task_id"]
-                for r in conn.execute(
-                    "SELECT task_id FROM tasks "
-                    "WHERE state IN ('completed', 'failed', 'cancelled') "
-                    "AND terminal_at IS NOT NULL AND terminal_at < ?",
-                    (cutoff,),
-                ).fetchall()
-            ]
-            for task_id in ids:
-                conn.execute("DELETE FROM waits WHERE task_id = ?", (task_id,))
-                conn.execute("DELETE FROM checkpoints WHERE task_id = ?", (task_id,))
-                conn.execute("DELETE FROM runs WHERE task_id = ?", (task_id,))
-                conn.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
+        ids = [
+            r["task_id"]
+            for r in self._conn()
+            .execute(
+                "SELECT task_id FROM tasks "
+                "WHERE state IN ('completed', 'failed', 'cancelled') "
+                "AND terminal_at IS NOT NULL AND terminal_at < ?",
+                (cutoff,),
+            )
+            .fetchall()
+        ]
+        for start in range(0, len(ids), _CLEANUP_BATCH_SIZE):
+            batch = ids[start : start + _CLEANUP_BATCH_SIZE]
+            with self._tx() as conn:
+                for task_id in batch:
+                    conn.execute("DELETE FROM waits WHERE task_id = ?", (task_id,))
+                    conn.execute(
+                        "DELETE FROM checkpoints WHERE task_id = ?", (task_id,)
+                    )
+                    conn.execute("DELETE FROM runs WHERE task_id = ?", (task_id,))
+                    conn.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
         # VACUUM cannot run inside a transaction; run it once afterwards.
         if ids:
             self._conn().execute("VACUUM")
