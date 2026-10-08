@@ -146,10 +146,19 @@ def summarize_batch(engine, task):
         timeout_secs=600,
     )
 
-    digests = engine.list_state(f"batch:{batch_id}:digests")
+    digests_namespace = f"batch:{batch_id}:digests"
+    digests = engine.list_state(digests_namespace)
     print(f"batch {batch_id[:8]} done, {len(digests)} stories:")
     for digest in digests.values():
         print(f"  [{digest['score']:>4}] {digest['title']} ({digest['domain']})")
+
+    # The countdown and digests were only needed to get here; durable state
+    # outlives tasks by design (see "how to use durable state"), so without
+    # this they'd accumulate forever, one namespace per batch.
+    for story_id in digests:
+        engine.delete_state(namespace=digests_namespace, key=story_id)
+    engine.delete_state(namespace=f"batch:{batch_id}", key="remaining")
+
     return {"summarized": len(digests)}
 
 
